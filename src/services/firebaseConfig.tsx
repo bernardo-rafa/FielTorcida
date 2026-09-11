@@ -1,29 +1,32 @@
-import { initializeApp } from 'firebase/app';
-import { getDatabase } from 'firebase/database';
-import {
-  initializeAuth,
-  getReactNativePersistence,
-} from 'firebase/auth';
-import AsyncStorage from '@react-native-async-storage/async-storage';
- 
+//inicializa conexão com o firebase
+import { initializeApp } from "firebase/app";
+//incializa conexão com o banco de dados
+import { getDatabase } from "firebase/database";
+//iniciliaza com a autenticação do firebase
+import { initializeAuth } from "firebase/auth";
+
+import { getAnalytics } from "firebase/analytics";
+
+
 const firebaseConfig = {
-  apiKey: 'SUA_API_KEY',
-  authDomain: 'SEU_PROJETO.firebaseapp.com',
-  databaseURL: 'https://SEU_PROJETO-default-rtdb.firebaseio.com',
-  projectId: 'SEU_PROJETO',
-  storageBucket: 'SEU_PROJETO.firebasestorage.app',
-  messagingSenderId: 'SEU_MESSAGING_SENDER_ID',
-  appId: 'SEU_APP_ID',
+  apiKey: "AIzaSyDeSEVXG4iirwvPmuAxJvKViR9dg21USlo",
+  authDomain: "fieltorcida-b5195.firebaseapp.com",
+  databaseURL: "https://fieltorcida-b5195-default-rtdb.firebaseio.com",
+  projectId: "fieltorcida-b5195",
+  storageBucket: "fieltorcida-b5195.firebasestorage.app",
+  messagingSenderId: "420621096277",
+  appId: "1:420621096277:web:f67e047bc1b0dcf2518bdc",
+  measurementId: "G-SB9GKZC5WM",
 };
- 
+
 const app = initializeApp(firebaseConfig);
- 
-// Firebase Authentication
-export const auth = initializeAuth(app, {
-  persistence: getReactNativePersistence(AsyncStorage),
-});
- 
+
+export const analytics = getAnalytics(app);
+// Firebase Authenticationnpx expo install firebase
+export const auth = initializeAuth(app);
+
+
 // Realtime Database
 export const database = getDatabase(app);
- 
+
 export default app;

@@ -1,10 +1,57 @@
-import{
-    createUserWithEmailAndPassword,
-}from 'firebase/auth';
+import {
+    createUserWithEmailAndPassword, 
+} from 'firebase/auth';
 
 import {
+    
     ref,
     set,
+    
+} from 'firebase/database';
 
-}from 'firebase/database';
-import
+import {
+    auth,
+    database,
+} from './firebaseConfig';
+
+import {
+    UserModel,
+} from '../models/UserModel';
+
+class UserService {
+
+    async cadastrarUsuario(
+        nome: string,
+        celular: string,
+        email: string,
+        senha: string
+    ): Promise<UserModel> {
+
+        const userCredential =
+            await createUserWithEmailAndPassword(
+                auth,
+                email,
+                senha
+            );
+
+        const uid =
+            userCredential.user.uid;
+
+        const usuario: UserModel = {
+            id: uid,
+            nome: nome,
+            celular: celular,
+            email: email,
+            createdAt: new Date().toISOString(),
+        };
+
+        await set(
+            ref(database, `usuarios/${uid}`),
+            usuario
+        );
+
+        return usuario;
+    }
+}
+
+export const userService = new UserService();
