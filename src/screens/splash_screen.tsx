@@ -1,9 +1,24 @@
 import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, ImageBackground, ActivityIndicator } from 'react-native';
+// Importação do tipo de navegação (assumindo que você usa o React Navigation)
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
-export default function SplashScreen({ navigation }) {
+// 1. Definimos os nomes das telas que existem no seu App para o TypeScript
+type RootStackParamList = {
+    Splash: undefined;
+    Login: undefined;
+    // Você pode adicionar outras telas aqui futuramente, como:
+    // Home: undefined;
+    // Register: undefined;
+};
+
+// 2. Tipamos a propriedade 'navigation' específica para esta tela
+type SplashScreenProps = {
+    navigation: NativeStackNavigationProp<RootStackParamList, 'Splash'>;
+};
+
+export default function SplashScreen({ navigation }: SplashScreenProps) {
     useEffect(() => {
-        // Tempo ajustado para 3 segundos para dar tempo de apreciar a tela
         const timer = setTimeout(() => {
             navigation.replace('Login');
         }, 3000);
@@ -12,18 +27,17 @@ export default function SplashScreen({ navigation }) {
     }, [navigation]);
 
     return (
-        // O ImageBackground substitui a View principal para colocar a imagem no fundo
         <ImageBackground 
-            source={require('../assets/imagens/logotipo.png')} // Verifique se o caminho está correto em relação a este arquivo
+            // Caminho relativo saindo de src/screens/ e indo para assets/images/
+            source={require('../../assets/images/logotipo.png')} 
             style={styles.background}
             resizeMode="cover"
         >
-            {/* Esta View cria uma leve camada escura para destacar o texto */}
             <View style={styles.overlay}>
-                <Text style={styles.logo}>MEU APP</Text>
-                <Text style={styles.subtitle}>Bem-vindo!</Text>
+                {/* Textos ajustados para o tema do seu projeto */}
+                <Text style={styles.logo}>FIEL TORCIDA</Text>
+                <Text style={styles.subtitle}>Fernandópolis - SP</Text>
                 
-                {/* Um indicador de carregamento profissional */}
                 <ActivityIndicator size="large" color="#ffffff" style={styles.loader} />
             </View>
         </ImageBackground>
@@ -40,21 +54,23 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: 'rgba(0, 0, 0, 0.5)', // Fundo translúcido (50% de opacidade)
+        backgroundColor: 'rgba(0, 0, 0, 0.6)', // 60% escuro para destacar bem o texto
     },
     logo: {
         fontSize: 38,
         fontWeight: 'bold',
-        color: '#ffffff', // Texto branco
-        textShadowColor: 'rgba(0, 0, 0, 0.9)', // Sombra no texto para destacar
+        color: '#ffffff',
+        textShadowColor: 'rgba(0, 0, 0, 0.9)',
         textShadowOffset: { width: 1, height: 1 },
         textShadowRadius: 10,
+        textAlign: 'center',
     },
     subtitle: {
-        marginTop: 10,
+        marginTop: 5,
         fontSize: 18,
         color: '#f0f0f0',
         fontWeight: '500',
+        textAlign: 'center',
     },
     loader: {
         marginTop: 40,
