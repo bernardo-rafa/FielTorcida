@@ -1,531 +1,227 @@
 import React, { useState } from 'react';
-import {
-    Alert,
-    KeyboardAvoidingView,
+import { 
+    View, 
+    Text, 
+    TextInput, 
+    TouchableOpacity, 
+    StyleSheet, 
+    KeyboardAvoidingView, 
     Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+    SafeAreaView,
+    ImageBackground,
+    ScrollView
 } from 'react-native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
-export default function RegisterScreen({ navigation }: any) {
-    const [nome, setNome] = useState('');
-    const [celular, setCelular] = useState('');
+// 1. Tipagem das rotas
+type RootStackParamList = {
+    Splash: undefined;
+    Login: undefined;
+    Home: undefined;
+    Register: undefined;
+};
+
+// 2. Tipagem da propriedade navigation para a RegisterScreen
+type RegisterScreenProps = {
+    navigation: NativeStackNavigationProp<RootStackParamList, 'Register'>;
+};
+
+export default function RegisterScreen({ navigation }: RegisterScreenProps) {
+    const [name, setName] = useState('');
     const [email, setEmail] = useState('');
-    const [senha, setSenha] = useState('');
-    const [mostrarSenha, setMostrarSenha] = useState(false);
+    const [password, setPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
 
-    const [erros, setErros] = useState({
-        nome: '',
-        celular: '',
-        email: '',
-        senha: '',
-    });
-
-    // =========================
-    // MÁSCARA DO CELULAR
-    // =========================
-    const aplicarMascaraCelular = (texto: string) => {
-        let numero = texto.replace(/\D/g, '');
-
-        if (numero.length > 11) {
-            numero = numero.substring(0, 11);
+    const handleRegister = () => {
+        if (name !== '' && email !== '' && password !== '' && confirmPassword !== '') {
+            if (password === confirmPassword) {
+                console.log('Cadastro realizado com sucesso!');
+                // Após o cadastro, geralmente levamos o usuário de volta para o Login ou direto para a Home
+                navigation.replace('Home');
+            } else {
+                console.log('As senhas não coincidem!');
+            }
+        } else {
+            console.log('Preencha todos os campos!');
         }
-
-        if (numero.length <= 2) {
-            return numero;
-        }
-
-        if (numero.length <= 7) {
-            return `(${numero.substring(0, 2)}) ${numero.substring(2)}`;
-        }
-
-        return `(${numero.substring(0, 2)}) ${numero.substring(
-            2,
-            7
-        )}-${numero.substring(7)}`;
-    };
-
-    // =========================
-    // VALIDAÇÃO DO E-MAIL
-    // =========================
-    const validarEmail = (email: string) => {
-        const regex =
-            /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-        return regex.test(email);
-    };
-
-    // =========================
-    // VALIDAÇÃO DA SENHA
-    // =========================
-    const validarSenha = (senha: string) => {
-        // Mínimo 8 caracteres
-        // Pelo menos uma letra
-        // Pelo menos um número
-        // Pelo menos um símbolo
-        const regex =
-            /^(?=.*[A-Za-z])(?=.*\d)(?=.*[^A-Za-z\d]).{8,}$/;
-
-        return regex.test(senha);
-    };
-
-    // =========================
-    // VALIDAÇÃO DOS CAMPOS
-    // =========================
-    const validarCampos = () => {
-        const novosErros = {
-            nome: '',
-            celular: '',
-            email: '',
-            senha: '',
-        };
-
-        let valido = true;
-
-        // Nome
-        if (!nome.trim()) {
-            novosErros.nome = 'Informe seu nome.';
-            valido = false;
-        }
-
-        // Celular
-        if (!celular.trim()) {
-            novosErros.celular = 'Informe seu celular.';
-            valido = false;
-        } else if (
-            celular.replace(/\D/g, '').length !== 11
-        ) {
-            novosErros.celular =
-                'Informe um celular válido.';
-            valido = false;
-        }
-
-        // E-mail
-        if (!email.trim()) {
-            novosErros.email = 'Informe seu e-mail.';
-            valido = false;
-        } else if (!validarEmail(email.trim())) {
-            novosErros.email =
-                'Informe um e-mail válido.';
-            valido = false;
-        }
-
-        // Senha
-        if (!senha.trim()) {
-            novosErros.senha = 'Informe uma senha.';
-            valido = false;
-        } else if (!validarSenha(senha)) {
-            novosErros.senha =
-                'A senha deve ter no mínimo 8 caracteres, contendo letras, números e pelo menos um símbolo.';
-            valido = false;
-        }
-
-        setErros(novosErros);
-
-        return valido;
-    };
-
-    // =========================
-    // CADASTRAR USUÁRIO
-    // =========================
-    const cadastrarUsuario = () => {
-        if (!validarCampos()) {
-            return;
-        }
-
-        Alert.alert(
-            'Cadastro realizado',
-            'Usuário cadastrado com sucesso!',
-            [
-                {
-                    text: 'OK',
-                    onPress: () => navigation.navigate('Login'),
-                },
-            ]
-        );
     };
 
     return (
-        <KeyboardAvoidingView
-            style={styles.container}
-            behavior={
-                Platform.OS === 'ios'
-                    ? 'padding'
-                    : undefined
-            }
+        <ImageBackground 
+            source={require('../../assets/images/logotipo.png')} 
+            style={styles.background}
+            resizeMode="cover"
         >
-            <ScrollView
-                contentContainerStyle={styles.scroll}
-                keyboardShouldPersistTaps="handled"
-            >
-                <View style={styles.card}>
-
-                    {/* TÍTULO */}
-                    <Text style={styles.titulo}>
-                        Criar conta
-                    </Text>
-
-                    <Text style={styles.subtitulo}>
-                        Preencha os dados para criar sua conta
-                    </Text>
-
-                    {/* NOME */}
-                    <View style={styles.inputContainer}>
-                        <Text style={styles.label}>
-                            Nome
-                        </Text>
-
-                        <TextInput
-                            style={[
-                                styles.input,
-                                erros.nome
-                                    ? styles.inputErro
-                                    : null,
-                            ]}
-                            placeholder="Digite seu nome"
-                            placeholderTextColor="#999"
-                            value={nome}
-                            onChangeText={(texto) => {
-                                setNome(texto);
-
-                                if (erros.nome) {
-                                    setErros({
-                                        ...erros,
-                                        nome: '',
-                                    });
-                                }
-                            }}
-                            autoCapitalize="words"
-                        />
-
-                        {erros.nome ? (
-                            <Text style={styles.textoErro}>
-                                {erros.nome}
-                            </Text>
-                        ) : null}
-                    </View>
-
-                    {/* CELULAR */}
-                    <View style={styles.inputContainer}>
-                        <Text style={styles.label}>
-                            Celular
-                        </Text>
-
-                        <TextInput
-                            style={[
-                                styles.input,
-                                erros.celular
-                                    ? styles.inputErro
-                                    : null,
-                            ]}
-                            placeholder="(00) 00000-0000"
-                            placeholderTextColor="#999"
-                            value={celular}
-                            onChangeText={(texto) => {
-                                setCelular(
-                                    aplicarMascaraCelular(
-                                        texto
-                                    )
-                                );
-
-                                if (erros.celular) {
-                                    setErros({
-                                        ...erros,
-                                        celular: '',
-                                    });
-                                }
-                            }}
-                            keyboardType="phone-pad"
-                            maxLength={15}
-                        />
-
-                        {erros.celular ? (
-                            <Text style={styles.textoErro}>
-                                {erros.celular}
-                            </Text>
-                        ) : null}
-                    </View>
-
-                    {/* E-MAIL */}
-                    <View style={styles.inputContainer}>
-                        <Text style={styles.label}>
-                            E-mail
-                        </Text>
-
-                        <TextInput
-                            style={[
-                                styles.input,
-                                erros.email
-                                    ? styles.inputErro
-                                    : null,
-                            ]}
-                            placeholder="Digite seu e-mail"
-                            placeholderTextColor="#999"
-                            value={email}
-                            onChangeText={(texto) => {
-                                setEmail(texto.toLowerCase());
-
-                                if (erros.email) {
-                                    setErros({
-                                        ...erros,
-                                        email: '',
-                                    });
-                                }
-                            }}
-                            keyboardType="email-address"
-                            autoCapitalize="none"
-                            autoCorrect={false}
-                        />
-
-                        {erros.email ? (
-                            <Text style={styles.textoErro}>
-                                {erros.email}
-                            </Text>
-                        ) : null}
-                    </View>
-
-                    {/* SENHA */}
-                    <View style={styles.inputContainer}>
-                        <Text style={styles.label}>
-                            Senha
-                        </Text>
-
-                        <View
-                            style={[
-                                styles.senhaContainer,
-                                erros.senha
-                                    ? styles.inputErro
-                                    : null,
-                            ]}
-                        >
-                            <TextInput
-                                style={styles.inputSenha}
-                                placeholder="Digite sua senha"
-                                placeholderTextColor="#999"
-                                value={senha}
-                                onChangeText={(texto) => {
-                                    setSenha(texto);
-
-                                    if (erros.senha) {
-                                        setErros({
-                                            ...erros,
-                                            senha: '',
-                                        });
-                                    }
-                                }}
-                                secureTextEntry={!mostrarSenha}
-                                autoCapitalize="none"
-                            />
-
-                            <TouchableOpacity
-                                onPress={() =>
-                                    setMostrarSenha(
-                                        !mostrarSenha
-                                    )
-                                }
-                            >
-                                <Text style={styles.mostrarSenha}>
-                                    {mostrarSenha
-                                        ? 'Ocultar'
-                                        : 'Mostrar'}
-                                </Text>
-                            </TouchableOpacity>
-                        </View>
-
-                        {erros.senha ? (
-                            <Text style={styles.textoErro}>
-                                {erros.senha}
-                            </Text>
-                        ) : null}
-
-                        <Text style={styles.dicaSenha}>
-                            A senha deve possuir no mínimo 8
-                            caracteres, incluindo letras,
-                            números e pelo menos um símbolo.
-                        </Text>
-                    </View>
-
-                    {/* BOTÃO CADASTRAR */}
-                    <TouchableOpacity
-                        style={styles.botao}
-                        onPress={cadastrarUsuario}
-                        activeOpacity={0.8}
+            <View style={styles.overlay}>
+                <SafeAreaView style={styles.container}>
+                    <KeyboardAvoidingView 
+                        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                        style={styles.keyboardContainer}
                     >
-                        <Text style={styles.textoBotao}>
-                            CADASTRAR
-                        </Text>
-                    </TouchableOpacity>
-
-                    {/* VOLTAR PARA LOGIN */}
-                    <View style={styles.loginContainer}>
-                        <Text style={styles.textoLogin}>
-                            Já possui uma conta?
-                        </Text>
-
-                        <TouchableOpacity
-                            onPress={() =>
-                                navigation.navigate('Login')
-                            }
+                        {/* Usamos ScrollView para permitir rolagem caso a tela do celular seja pequena */}
+                        <ScrollView 
+                            contentContainerStyle={styles.scrollContent}
+                            showsVerticalScrollIndicator={false}
                         >
-                            <Text style={styles.linkLogin}>
-                                Entrar
-                            </Text>
-                        </TouchableOpacity>
-                    </View>
+                            <View style={styles.header}>
+                                <Text style={styles.title}>FIEL TORCIDA</Text>
+                                <Text style={styles.subtitle}>Novo Cadastro</Text>
+                            </View>
 
-                </View>
-            </ScrollView>
-        </KeyboardAvoidingView>
+                            <View style={styles.formContainer}>
+                                <Text style={styles.label}>Nome Completo</Text>
+                                <TextInput 
+                                    style={styles.input}
+                                    placeholder="Digite seu nome"
+                                    placeholderTextColor="#999"
+                                    value={name}
+                                    onChangeText={setName}
+                                />
+
+                                <Text style={styles.label}>E-mail</Text>
+                                <TextInput 
+                                    style={styles.input}
+                                    placeholder="Digite seu e-mail"
+                                    placeholderTextColor="#999"
+                                    keyboardType="email-address"
+                                    autoCapitalize="none"
+                                    value={email}
+                                    onChangeText={setEmail}
+                                />
+
+                                <Text style={styles.label}>Senha</Text>
+                                <TextInput 
+                                    style={styles.input}
+                                    placeholder="Crie uma senha"
+                                    placeholderTextColor="#999"
+                                    secureTextEntry={true}
+                                    value={password}
+                                    onChangeText={setPassword}
+                                />
+
+                                <Text style={styles.label}>Confirmar Senha</Text>
+                                <TextInput 
+                                    style={styles.input}
+                                    placeholder="Repita sua senha"
+                                    placeholderTextColor="#999"
+                                    secureTextEntry={true}
+                                    value={confirmPassword}
+                                    onChangeText={setConfirmPassword}
+                                />
+
+                                <TouchableOpacity style={styles.registerButton} onPress={handleRegister}>
+                                    <Text style={styles.registerButtonText}>CADASTRAR</Text>
+                                </TouchableOpacity>
+                            </View>
+
+                            <View style={styles.footer}>
+                                <Text style={styles.footerText}>Já faz parte da Fiel? </Text>
+                                {/* Botão para voltar para a tela de login */}
+                                <TouchableOpacity onPress={() => navigation.goBack()}>
+                                    <Text style={styles.loginText}>Entrar</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </ScrollView>
+                    </KeyboardAvoidingView>
+                </SafeAreaView>
+            </View>
+        </ImageBackground>
     );
 }
 
-// =========================
-// ESTILOS
-// =========================
-
 const styles = StyleSheet.create({
+    background: {
+        flex: 1,
+        width: '100%',
+        height: '100%',
+    },
+    overlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.75)', 
+    },
     container: {
         flex: 1,
-        backgroundColor: '#F5F9F6',
     },
-
-    scroll: {
+    keyboardContainer: {
+        flex: 1,
+    },
+    scrollContent: {
         flexGrow: 1,
         justifyContent: 'center',
-        padding: 24,
+        paddingHorizontal: 30,
+        paddingVertical: 40,
     },
-
-    card: {
-        backgroundColor: '#FFFFFF',
-        borderRadius: 20,
-        padding: 25,
-
-        shadowColor: '#000',
-        shadowOffset: {
-            width: 0,
-            height: 4,
-        },
-        shadowOpacity: 0.10,
-        shadowRadius: 8,
-
-        elevation: 5,
+    header: {
+        alignItems: 'center',
+        marginBottom: 40,
     },
-
-    titulo: {
-        fontSize: 30,
+    title: {
+        fontSize: 32,
         fontWeight: 'bold',
-        color: '#2E7D32',
-        textAlign: 'center',
-        marginBottom: 8,
+        color: '#ffffff',
+        letterSpacing: 2,
+        textShadowColor: 'rgba(0, 0, 0, 0.9)',
+        textShadowOffset: { width: 1, height: 1 },
+        textShadowRadius: 10,
     },
-
-    subtitulo: {
-        fontSize: 14,
-        color: '#777',
-        textAlign: 'center',
-        marginBottom: 28,
-    },
-
-    inputContainer: {
-        marginBottom: 18,
-    },
-
-    label: {
-        fontSize: 15,
-        fontWeight: '600',
-        color: '#333',
-        marginBottom: 7,
-    },
-
-    input: {
-        height: 52,
-        borderWidth: 1,
-        borderColor: '#D5D5D5',
-        borderRadius: 10,
-        paddingHorizontal: 15,
-        fontSize: 16,
-        color: '#333',
-        backgroundColor: '#FAFAFA',
-    },
-
-    inputErro: {
-        borderColor: '#D32F2F',
-    },
-
-    textoErro: {
-        color: '#D32F2F',
-        fontSize: 12,
+    subtitle: {
+        fontSize: 18,
+        color: '#e0e0e0',
+        textTransform: 'uppercase',
+        letterSpacing: 1,
         marginTop: 5,
-        lineHeight: 17,
     },
-
-    senhaContainer: {
-        height: 52,
-        borderWidth: 1,
-        borderColor: '#D5D5D5',
-        borderRadius: 10,
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingLeft: 15,
-        paddingRight: 12,
-        backgroundColor: '#FAFAFA',
+    formContainer: {
+        width: '100%',
     },
-
-    inputSenha: {
-        flex: 1,
-        fontSize: 16,
-        color: '#333',
-    },
-
-    mostrarSenha: {
-        color: '#2E7D32',
+    label: {
+        color: '#ffffff',
+        fontSize: 14,
         fontWeight: '600',
-        fontSize: 13,
+        marginBottom: 8,
+        marginLeft: 4,
     },
-
-    dicaSenha: {
-        fontSize: 11,
-        color: '#777',
-        marginTop: 7,
-        lineHeight: 16,
+    input: {
+        backgroundColor: 'rgba(30, 30, 30, 0.8)', 
+        color: '#ffffff',
+        borderRadius: 8,
+        padding: 15,
+        fontSize: 16,
+        borderWidth: 1,
+        borderColor: '#444',
+        marginBottom: 20,
     },
-
-    botao: {
-        height: 52,
-        backgroundColor: '#2E7D32',
-        borderRadius: 10,
-        justifyContent: 'center',
+    registerButton: {
+        backgroundColor: '#ffffff', 
+        padding: 16,
+        borderRadius: 8,
         alignItems: 'center',
-        marginTop: 8,
+        marginTop: 10,
+        elevation: 3,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 3,
     },
-
-    textoBotao: {
-        color: '#FFFFFF',
+    registerButtonText: {
+        color: '#121212',
         fontSize: 16,
         fontWeight: 'bold',
+        letterSpacing: 1,
     },
-
-    loginContainer: {
+    footer: {
         flexDirection: 'row',
         justifyContent: 'center',
-        alignItems: 'center',
-        marginTop: 22,
+        marginTop: 40,
     },
-
-    textoLogin: {
-        color: '#666',
-        fontSize: 14,
-        marginRight: 5,
+    footerText: {
+        color: '#d0d0d0',
+        fontSize: 15,
     },
-
-    linkLogin: {
-        color: '#2E7D32',
-        fontSize: 14,
+    loginText: {
+        color: '#ffffff',
+        fontSize: 15,
         fontWeight: 'bold',
+        textDecorationLine: 'underline',
     },
 });
-
