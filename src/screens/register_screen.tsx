@@ -1,11 +1,13 @@
-import React, { useState } from "react";
-
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { ref, set } from "firebase/database";
+import React, { useState } from "react";
 import {
+    Alert,
     ImageBackground,
     KeyboardAvoidingView,
     Platform,
+    SafeAreaView,
     ScrollView,
     StyleSheet,
     Text,
@@ -13,11 +15,8 @@ import {
     TouchableOpacity,
     View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { auth, database } from "../services/firebaseConfig";
 
-import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-// 1. Tipagem das rotas
 type RootStackParamList = {
   Splash: undefined;
   Login: undefined;
@@ -25,7 +24,6 @@ type RootStackParamList = {
   Register: undefined;
 };
 
-// 2. Tipagem da propriedade navigation para a RegisterScreen
 type RegisterScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, "Register">;
 };
@@ -37,48 +35,66 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
   const [confirmPassword, setConfirmPassword] = useState("");
 
   const handleRegister = async () => {
-    if (
-      name !== "" &&
-      email !== "" &&
-      password !== "" &&
-      confirmPassword !== ""
-    ) {
-      if (password === confirmPassword) {
-        try {
-          // 1. Cria o usuário no Firebase Authentication
-          const userCredential = await createUserWithEmailAndPassword(
-            auth,
-            email,
-            password,
-          );
-          const user = userCredential.user;
+    // 1. Validação de dados em branco
+    if (!name || !email || !password || !confirmPassword) {
+      Alert.alert(
+        "Atenção",
+        "Por favor, preencha todos os campos antes de continuar.",
+      );
+      return; // O return impede que o código continue executando
+    }
 
-          // 2. Salva os dados do usuário no Realtime Database
-          // Criamos uma "pasta" chamada 'usuarios' e usamos o ID único do usuário (uid)
-          await set(ref(database, "usuarios/" + user.uid), {
-            nome: name,
-            email: email,
-            dataCadastro: new Date().toISOString(),
-          });
+    // 2. Validação se as senhas conferem
+    if (password !== confirmPassword) {
+      Alert.alert("Atenção", "As senhas digitadas não coincidem.");
+      return;
+    }
 
-          console.log("Cadastro realizado com sucesso no Firebase!");
-          // Após o sucesso, navega para a Home
-          navigation.replace("Home");
-        } catch (error: any) {
-          // O Firebase retorna códigos de erro úteis
-          if (error.code === "auth/email-already-in-use") {
-            console.log("Este e-mail já está cadastrado!");
-          } else if (error.code === "auth/weak-password") {
-            console.log("A senha deve ter pelo menos 6 caracteres!");
-          } else {
-            console.log("Erro ao cadastrar: ", error.message);
-          }
-        }
+    // 3. Validação extra: Firebase exige senhas de no mínimo 6 caracteres
+    if (password.length < 6) {
+      Alert.alert(
+        "Senha muito curta",
+        "Sua senha deve ter pelo menos 6 caracteres.",
+      );
+      return;
+    }
+
+    try {
+      // Cria o usuário na aba Authentication
+      const userCredential = await createUserWithEmailAndPassword(
+        auth,
+        email,
+        password,
+      );
+      const user = userCredential.user;
+
+      // Salva os dados extras (nome, email) no Realtime Database
+      await set(ref(database, "usuarios/" + user.uid), {
+        nome: name,
+        email: email,
+        dataCadastro: new Date().toISOString(),
+      });
+
+      // Alerta de sucesso com botão de redirecionamento para o Login
+      Alert.alert(
+        "Bem-vindo à Fiel!",
+        "Seu cadastro foi realizado com sucesso.",
+        [
+          {
+            text: "OK",
+            onPress: () => navigation.replace("Login"), // Volta para o login após o usuário clicar em OK
+          },
+        ],
+      );
+    } catch (error: any) {
+      // Tratamento visual dos erros que o Firebase retorna
+      if (error.code === "auth/email-already-in-use") {
+        Alert.alert("Erro", "Este e-mail já possui um cadastro ativo.");
+      } else if (error.code === "auth/invalid-email") {
+        Alert.alert("Erro", "Por favor, digite um formato de e-mail válido.");
       } else {
-        console.log("As senhas não coincidem!");
+        Alert.alert("Erro no cadastro", error.message);
       }
-    } else {
-      console.log("Preencha todos os campos!");
     }
   };
 
@@ -94,7 +110,6 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
             behavior={Platform.OS === "ios" ? "padding" : "height"}
             style={styles.keyboardContainer}
           >
-            {/* Usamos ScrollView para permitir rolagem caso a tela do celular seja pequena */}
             <ScrollView
               contentContainerStyle={styles.scrollContent}
               showsVerticalScrollIndicator={false}
@@ -128,7 +143,7 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
                 <Text style={styles.label}>Senha</Text>
                 <TextInput
                   style={styles.input}
-                  placeholder="Crie uma senha"
+                  placeholder="Crie uma senha (mínimo 6 caracteres)"
                   placeholderTextColor="#999"
                   secureTextEntry={true}
                   value={password}
@@ -155,7 +170,6 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
 
               <View style={styles.footer}>
                 <Text style={styles.footerText}>Já faz parte da Fiel? </Text>
-                {/* Botão para voltar para a tela de login */}
                 <TouchableOpacity onPress={() => navigation.goBack()}>
                   <Text style={styles.loginText}>Entrar</Text>
                 </TouchableOpacity>
@@ -168,32 +182,19 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
   );
 }
 
+// ... Os estilos (StyleSheet) continuam exatamente iguais ao passo anterior!
 const styles = StyleSheet.create({
-  background: {
-    flex: 1,
-    width: "100%",
-    height: "100%",
-  },
-  overlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.75)",
-  },
-  container: {
-    flex: 1,
-  },
-  keyboardContainer: {
-    flex: 1,
-  },
+  background: { flex: 1, width: "100%", height: "100%" },
+  overlay: { flex: 1, backgroundColor: "rgba(0, 0, 0, 0.75)" },
+  container: { flex: 1 },
+  keyboardContainer: { flex: 1 },
   scrollContent: {
     flexGrow: 1,
     justifyContent: "center",
     paddingHorizontal: 30,
     paddingVertical: 40,
   },
-  header: {
-    alignItems: "center",
-    marginBottom: 40,
-  },
+  header: { alignItems: "center", marginBottom: 40 },
   title: {
     fontSize: 32,
     fontWeight: "bold",
@@ -210,9 +211,7 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     marginTop: 5,
   },
-  formContainer: {
-    width: "100%",
-  },
+  formContainer: { width: "100%" },
   label: {
     color: "#ffffff",
     fontSize: 14,
@@ -248,15 +247,8 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     letterSpacing: 1,
   },
-  footer: {
-    flexDirection: "row",
-    justifyContent: "center",
-    marginTop: 40,
-  },
-  footerText: {
-    color: "#d0d0d0",
-    fontSize: 15,
-  },
+  footer: { flexDirection: "row", justifyContent: "center", marginTop: 40 },
+  footerText: { color: "#d0d0d0", fontSize: 15 },
   loginText: {
     color: "#ffffff",
     fontSize: 15,
