@@ -3,10 +3,7 @@ import { initializeApp } from "firebase/app";
 //incializa conexão com o banco de dados
 import { getDatabase } from "firebase/database";
 //iniciliaza com a autenticação do firebase
-import { initializeAuth } from "firebase/auth";
-
-import { getAnalytics } from "firebase/analytics";
-
+import { getAuth } from "firebase/auth";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDeSEVXG4iirwvPmuAxJvKViR9dg21USlo",
@@ -21,12 +18,7 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 
-export const analytics = getAnalytics(app);
-// Firebase Authenticationnpx expo install firebase
-export const auth = initializeAuth(app);
-
-
-// Realtime Database
+export const auth = getAuth(app);
 export const database = getDatabase(app);
 
 export default app;
