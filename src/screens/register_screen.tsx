@@ -10,12 +10,14 @@ import {
     SafeAreaView,
     ImageBackground,
     ScrollView,
-    Alert 
+    Alert,
+    ActivityIndicator
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { auth, database } from '../services/firebaseConfig';
 import { createUserWithEmailAndPassword, signOut } from 'firebase/auth';
-import { ref, set } from 'firebase/database';
+// Importando funções de consulta do Firebase Database
+import { ref, set, get, query, orderByChild, equalTo } from 'firebase/database';
 
 type RootStackParamList = {
     Splash: undefined;
@@ -30,13 +32,18 @@ type RegisterScreenProps = {
 
 export default function RegisterScreen({ navigation }: RegisterScreenProps) {
     const [name, setName] = useState('');
+    const [cpf, setCpf] = useState('');
     const [phone, setPhone] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     
+    // Estado de carregamento para bloquear o botão enquanto consulta o banco
+    const [isLoading, setIsLoading] = useState(false);
+    
     const [errors, setErrors] = useState({
         name: '',
+        cpf: '',
         phone: '',
         email: '',
         password: '',
@@ -44,33 +51,69 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
         general: ''
     });
 
+    // 1. MÁSCARA DE CPF
+    const formatCpf = (text: string) => {
+        const cleaned = text.replace(/\D/g, '').slice(0, 11);
+        let formatted = cleaned;
+        if (cleaned.length > 3) {
+            formatted = `${cleaned.slice(0, 3)}.${cleaned.slice(3)}`;
+        }
+        if (cleaned.length > 6) {
+            formatted = `${cleaned.slice(0, 3)}.${cleaned.slice(3, 6)}.${cleaned.slice(6)}`;
+        }
+        if (cleaned.length > 9) {
+            formatted = `${cleaned.slice(0, 3)}.${cleaned.slice(3, 6)}.${cleaned.slice(6, 9)}-${cleaned.slice(9)}`;
+        }
+        return formatted;
+    };
+
+    // 2. VALIDAÇÃO MATEMÁTICA DE CPF
+    const isValidCpf = (cpfStr: string) => {
+        const strCPF = cpfStr.replace(/\D/g, '');
+        if (strCPF.length !== 11) return false;
+        if (/^(\d)\1{10}$/.test(strCPF)) return false; // Bloqueia CPFs com números repetidos (ex: 00000000000)
+
+        let sum = 0;
+        let remainder;
+
+        for (let i = 1; i <= 9; i++) sum = sum + parseInt(strCPF.substring(i - 1, i)) * (11 - i);
+        remainder = (sum * 10) % 11;
+        if (remainder === 10 || remainder === 11) remainder = 0;
+        if (remainder !== parseInt(strCPF.substring(9, 10))) return false;
+
+        sum = 0;
+        for (let i = 1; i <= 10; i++) sum = sum + parseInt(strCPF.substring(i - 1, i)) * (12 - i);
+        remainder = (sum * 10) % 11;
+        if (remainder === 10 || remainder === 11) remainder = 0;
+        if (remainder !== parseInt(strCPF.substring(10, 11))) return false;
+
+        return true;
+    };
+
+    // 3. MÁSCARA DE TELEFONE
     const formatPhone = (text: string) => {
         const cleaned = text.replace(/\D/g, '').slice(0, 11);
         let formatted = cleaned;
-        
         if (cleaned.length > 2) {
             formatted = `(${cleaned.slice(0, 2)}) ${cleaned.slice(2)}`;
         }
         if (cleaned.length > 7) {
             formatted = `(${cleaned.slice(0, 2)}) ${cleaned.slice(2, 7)}-${cleaned.slice(7)}`;
         }
-        
         return formatted;
     };
 
-    // Validações da Senha
     const hasMinLength = password.length >= 8;
     const hasUpperCase = /[A-Z]/.test(password);
     const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(password);
     const isPasswordStrong = hasMinLength && hasUpperCase && hasSpecialChar;
 
-    // Nova validação em tempo real para a Confirmação de Senha
     const hasStartedConfirming = confirmPassword.length > 0;
     const doPasswordsMatch = hasStartedConfirming && password === confirmPassword;
 
     const getRequirementColor = (isMet: boolean) => {
         if (password.length === 0) return '#a0a0a0'; 
-        return isMet ? '#4caf50' : '#ff4444'; 
+        return isMet ? '#FFFFFF' : '#ff4444'; 
     };
 
     const getRequirementIcon = (isMet: boolean) => {
@@ -79,11 +122,21 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
     };
 
     const handleRegister = async () => {
-        let currentErrors = { name: '', phone: '', email: '', password: '', confirmPassword: '', general: '' };
+        let currentErrors = { name: '', cpf: '', phone: '', email: '', password: '', confirmPassword: '', general: '' };
         let hasError = false;
 
+        // VALIDAÇÕES LOCAIS (Sintaxe e preenchimento)
         if (!name.trim()) {
             currentErrors.name = 'O nome completo é obrigatório.';
+            hasError = true;
+        }
+
+        const rawCpf = cpf.replace(/\D/g, '');
+        if (!cpf.trim()) {
+            currentErrors.cpf = 'O CPF é obrigatório.';
+            hasError = true;
+        } else if (!isValidCpf(cpf)) {
+            currentErrors.cpf = 'Digite um CPF válido.';
             hasError = true;
         }
 
@@ -92,7 +145,7 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
             currentErrors.phone = 'O telefone é obrigatório.';
             hasError = true;
         } else if (phoneNumbersOnly.length !== 11) {
-            currentErrors.phone = 'Digite um telefone válido com DDD (11 dígitos).';
+            currentErrors.phone = 'Digite um telefone válido com DDD.';
             hasError = true;
         }
 
@@ -123,13 +176,40 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
             return;
         }
 
+        // 4. CONSULTAS NO BANCO (Verificação de duplicidade)
+        setIsLoading(true);
         try {
+            // Consulta se o CPF já existe
+            const cpfQuery = query(ref(database, 'usuarios'), orderByChild('cpf'), equalTo(rawCpf));
+            const cpfSnapshot = await get(cpfQuery);
+            if (cpfSnapshot.exists()) {
+                currentErrors.cpf = 'Este CPF já está cadastrado em outra conta.';
+                hasError = true;
+            }
+
+            // Consulta se o Telefone já existe
+            const phoneQuery = query(ref(database, 'usuarios'), orderByChild('telefone'), equalTo(phoneNumbersOnly));
+            const phoneSnapshot = await get(phoneQuery);
+            if (phoneSnapshot.exists()) {
+                currentErrors.phone = 'Este telefone já está vinculado a outra conta.';
+                hasError = true;
+            }
+
+            if (hasError) {
+                setErrors(currentErrors);
+                setIsLoading(false);
+                return;
+            }
+
+            // 5. REGISTRO OFICIAL NO FIREBASE
             const userCredential = await createUserWithEmailAndPassword(auth, email, password);
             const user = userCredential.user;
 
+            // Salvamos no banco o CPF e o Telefone apenas com os números para facilitar buscas futuras
             await set(ref(database, 'usuarios/' + user.uid), {
                 nome: name,
-                telefone: phone,
+                cpf: rawCpf, 
+                telefone: phoneNumbersOnly, 
                 email: email,
                 dataCadastro: new Date().toISOString()
             });
@@ -145,9 +225,11 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
             } else if (error.code === 'auth/invalid-email') {
                 currentErrors.email = 'O servidor recusou o formato do e-mail.';
             } else {
-                currentErrors.general = 'Ocorreu um erro no servidor. Tente novamente.';
+                currentErrors.general = 'Ocorreu um erro no servidor. Verifique sua conexão e tente novamente.';
             }
             setErrors({ ...currentErrors });
+        } finally {
+            setIsLoading(false);
         }
     };
 
@@ -180,8 +262,25 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
                                     placeholderTextColor="#999"
                                     value={name}
                                     onChangeText={(text) => { setName(text); setErrors({...errors, name: ''}); }}
+                                    editable={!isLoading}
                                 />
                                 {errors.name ? <Text style={styles.fieldErrorText}>{errors.name}</Text> : null}
+
+                                <Text style={styles.label}>CPF</Text>
+                                <TextInput 
+                                    style={[styles.input, errors.cpf ? styles.inputError : null]}
+                                    placeholder="000.000.000-00"
+                                    placeholderTextColor="#999"
+                                    keyboardType="numeric"
+                                    maxLength={14}
+                                    value={cpf}
+                                    onChangeText={(text) => { 
+                                        setCpf(formatCpf(text)); 
+                                        setErrors({...errors, cpf: ''}); 
+                                    }}
+                                    editable={!isLoading}
+                                />
+                                {errors.cpf ? <Text style={styles.fieldErrorText}>{errors.cpf}</Text> : null}
 
                                 <Text style={styles.label}>Telefone</Text>
                                 <TextInput 
@@ -195,6 +294,7 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
                                         setPhone(formatPhone(text)); 
                                         setErrors({...errors, phone: ''}); 
                                     }}
+                                    editable={!isLoading}
                                 />
                                 {errors.phone ? <Text style={styles.fieldErrorText}>{errors.phone}</Text> : null}
 
@@ -207,6 +307,7 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
                                     autoCapitalize="none"
                                     value={email}
                                     onChangeText={(text) => { setEmail(text); setErrors({...errors, email: ''}); }}
+                                    editable={!isLoading}
                                 />
                                 {errors.email ? <Text style={styles.fieldErrorText}>{errors.email}</Text> : null}
 
@@ -218,6 +319,7 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
                                     secureTextEntry={true}
                                     value={password}
                                     onChangeText={(text) => { setPassword(text); setErrors({...errors, password: ''}); }}
+                                    editable={!isLoading}
                                 />
                                 
                                 <View style={styles.requirementsContainer}>
@@ -231,20 +333,19 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
                                         {getRequirementIcon(hasSpecialChar)} Mínimo 1 caractere especial (!@#$...)
                                     </Text>
                                 </View>
-                                {errors.password ? <Text style={[styles.fieldErrorText, {marginTop: 5}]}>{errors.password}</Text> : null}
+                                {errors.password ? <Text style={[styles.fieldErrorText, { marginTop: -10 }]}>{errors.password}</Text> : null}
 
                                 <Text style={styles.label}>Confirmar Senha</Text>
                                 <TextInput 
-                                    // Margem inferior ajustada dinamicamente dependendo se o aviso está na tela
                                     style={[styles.input, { marginBottom: hasStartedConfirming ? 5 : 15 }, errors.confirmPassword ? styles.inputError : null]}
                                     placeholder="Repita sua senha"
                                     placeholderTextColor="#999"
                                     secureTextEntry={true}
                                     value={confirmPassword}
                                     onChangeText={(text) => { setConfirmPassword(text); setErrors({...errors, confirmPassword: ''}); }}
+                                    editable={!isLoading}
                                 />
                                 
-                                {/* Confirmação visual em tempo real */}
                                 {hasStartedConfirming && (
                                     <Text style={[
                                         doPasswordsMatch ? styles.strongPasswordText : styles.weakPasswordText, 
@@ -258,14 +359,22 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
 
                                 {errors.general ? <Text style={styles.generalErrorText}>{errors.general}</Text> : null}
 
-                                <TouchableOpacity style={styles.registerButton} onPress={handleRegister}>
-                                    <Text style={styles.registerButtonText}>CADASTRAR</Text>
+                                <TouchableOpacity 
+                                    style={[styles.registerButton, isLoading && styles.registerButtonDisabled]} 
+                                    onPress={handleRegister}
+                                    disabled={isLoading}
+                                >
+                                    {isLoading ? (
+                                        <ActivityIndicator color="#121212" />
+                                    ) : (
+                                        <Text style={styles.registerButtonText}>CADASTRAR</Text>
+                                    )}
                                 </TouchableOpacity>
                             </View>
 
                             <View style={styles.footer}>
                                 <Text style={styles.footerText}>Já faz parte da Fiel? </Text>
-                                <TouchableOpacity onPress={() => navigation.goBack()}>
+                                <TouchableOpacity onPress={() => navigation.goBack()} disabled={isLoading}>
                                     <Text style={styles.loginText}>Entrar</Text>
                                 </TouchableOpacity>
                             </View>
@@ -288,19 +397,16 @@ const styles = StyleSheet.create({
     subtitle: { fontSize: 18, color: '#e0e0e0', textTransform: 'uppercase', letterSpacing: 1, marginTop: 5 },
     formContainer: { width: '100%' },
     label: { color: '#ffffff', fontSize: 14, fontWeight: '600', marginBottom: 8, marginLeft: 4 },
-    input: { backgroundColor: 'rgba(30, 30, 30, 0.8)', color: '#ffffff', borderRadius: 8, padding: 15, fontSize: 16, borderWidth: 1, borderColor: '#444' },
-    
-    inputError: { borderColor: '#ff4444', borderWidth: 1.5 },
-    fieldErrorText: { color: '#ff4444', fontSize: 13, fontWeight: '600', marginLeft: 4, marginTop: -10, marginBottom: 15 },
+    input: { backgroundColor: 'rgba(30, 30, 30, 0.8)', color: '#ffffff', borderRadius: 8, padding: 15, fontSize: 16, borderWidth: 1, borderColor: '#444', marginBottom: 15 },
+    inputError: { borderColor: '#ff4444', borderWidth: 1.5, marginBottom: 5 },
+    fieldErrorText: { color: '#ff4444', fontSize: 13, fontWeight: '600', marginLeft: 4, marginBottom: 15 },
     generalErrorText: { color: '#ff4444', fontSize: 14, fontWeight: 'bold', textAlign: 'center', marginBottom: 10 },
-    
     requirementsContainer: { marginBottom: 20, paddingHorizontal: 5 },
     requirementText: { fontSize: 13, fontWeight: '500', marginBottom: 4 },
-    
     weakPasswordText: { color: '#ff4444', fontSize: 12, marginLeft: 4, fontWeight: '500' },
-    strongPasswordText: { color: '#4caf50', fontSize: 13, marginLeft: 4, fontWeight: 'bold' },
-    
+    strongPasswordText: { color: '#FFFFFF', fontSize: 13, marginLeft: 4, fontWeight: 'bold' },
     registerButton: { backgroundColor: '#ffffff', padding: 16, borderRadius: 8, alignItems: 'center', marginTop: 10, elevation: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 3 },
+    registerButtonDisabled: { backgroundColor: '#a0a0a0', elevation: 0 },
     registerButtonText: { color: '#121212', fontSize: 16, fontWeight: 'bold', letterSpacing: 1 },
     footer: { flexDirection: 'row', justifyContent: 'center', marginTop: 30 },
     footerText: { color: '#d0d0d0', fontSize: 15 },
