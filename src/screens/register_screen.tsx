@@ -1,23 +1,21 @@
-import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { createUserWithEmailAndPassword, signOut } from "firebase/auth";
 import React, { useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    ImageBackground,
-    KeyboardAvoidingView,
-    Platform,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  KeyboardAvoidingView,
+  Platform,
+  SafeAreaView,
+  ImageBackground,
+  ScrollView,
+  Alert,
 } from "react-native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { auth, database } from "../services/firebaseConfig";
-// Importando funções de consulta do Firebase Database
-import { equalTo, get, orderByChild, query, ref, set } from "firebase/database";
+import { createUserWithEmailAndPassword, signOut } from "firebase/auth";
+import { ref, set } from "firebase/database";
 
 type RootStackParamList = {
   Splash: undefined;
@@ -38,9 +36,6 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
-  // Estado de carregamento para bloquear o botão enquanto consulta o banco
-  const [isLoading, setIsLoading] = useState(false);
-
   const [errors, setErrors] = useState({
     name: "",
     cpf: "",
@@ -51,10 +46,11 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
     general: "",
   });
 
-  // 1. MÁSCARA DE CPF
-  const formatCpf = (text: string) => {
+  // Função para formatar o CPF automaticamente (XXX.XXX.XXX-XX)
+  const formatCPF = (text: string) => {
     const cleaned = text.replace(/\D/g, "").slice(0, 11);
     let formatted = cleaned;
+
     if (cleaned.length > 3) {
       formatted = `${cleaned.slice(0, 3)}.${cleaned.slice(3)}`;
     }
@@ -64,44 +60,48 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
     if (cleaned.length > 9) {
       formatted = `${cleaned.slice(0, 3)}.${cleaned.slice(3, 6)}.${cleaned.slice(6, 9)}-${cleaned.slice(9)}`;
     }
+
     return formatted;
   };
 
-  // 2. VALIDAÇÃO MATEMÁTICA DE CPF
-  const isValidCpf = (cpfStr: string) => {
-    const strCPF = cpfStr.replace(/\D/g, "");
-    if (strCPF.length !== 11) return false;
-    if (/^(\d)\1{10}$/.test(strCPF)) return false; // Bloqueia CPFs com números repetidos (ex: 00000000000)
+  // Validação matemática oficial de CPF
+  const validateCPF = (cpfStr: string) => {
+    const cleaned = cpfStr.replace(/\D/g, "");
+    if (cleaned.length !== 11) return false;
+    if (/^(\d)\1+$/.test(cleaned)) return false; // Rejeita sequências repetidas (ex: 111.111.111-11)
 
     let sum = 0;
     let remainder;
 
-    for (let i = 1; i <= 9; i++)
-      sum = sum + parseInt(strCPF.substring(i - 1, i)) * (11 - i);
+    for (let i = 1; i <= 9; i++) {
+      sum += parseInt(cleaned.substring(i - 1, i)) * (11 - i);
+    }
     remainder = (sum * 10) % 11;
     if (remainder === 10 || remainder === 11) remainder = 0;
-    if (remainder !== parseInt(strCPF.substring(9, 10))) return false;
+    if (remainder !== parseInt(cleaned.substring(9, 10))) return false;
 
     sum = 0;
-    for (let i = 1; i <= 10; i++)
-      sum = sum + parseInt(strCPF.substring(i - 1, i)) * (12 - i);
+    for (let i = 1; i <= 10; i++) {
+      sum += parseInt(cleaned.substring(i - 1, i)) * (12 - i);
+    }
     remainder = (sum * 10) % 11;
     if (remainder === 10 || remainder === 11) remainder = 0;
-    if (remainder !== parseInt(strCPF.substring(10, 11))) return false;
+    if (remainder !== parseInt(cleaned.substring(10, 11))) return false;
 
     return true;
   };
 
-  // 3. MÁSCARA DE TELEFONE
   const formatPhone = (text: string) => {
     const cleaned = text.replace(/\D/g, "").slice(0, 11);
     let formatted = cleaned;
+
     if (cleaned.length > 2) {
       formatted = `(${cleaned.slice(0, 2)}) ${cleaned.slice(2)}`;
     }
     if (cleaned.length > 7) {
       formatted = `(${cleaned.slice(0, 2)}) ${cleaned.slice(2, 7)}-${cleaned.slice(7)}`;
     }
+
     return formatted;
   };
 
@@ -135,30 +135,36 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
     };
     let hasError = false;
 
-    // VALIDAÇÕES LOCAIS (Sintaxe e preenchimento)
+    // Validação de Nome (Mínimo de 3 letras)
+    const letterCount = (name.match(/[a-zA-ZÀ-ÿ]/g) || []).length;
     if (!name.trim()) {
       currentErrors.name = "O nome completo é obrigatório.";
       hasError = true;
+    } else if (letterCount < 3) {
+      currentErrors.name = "O nome deve conter pelo menos 3 letras.";
+      hasError = true;
     }
 
-    const rawCpf = cpf.replace(/\D/g, "");
+    // Validação de CPF
     if (!cpf.trim()) {
       currentErrors.cpf = "O CPF é obrigatório.";
       hasError = true;
-    } else if (!isValidCpf(cpf)) {
+    } else if (!validateCPF(cpf)) {
       currentErrors.cpf = "Digite um CPF válido.";
       hasError = true;
     }
 
+    // Validação de Telefone
     const phoneNumbersOnly = phone.replace(/\D/g, "");
     if (!phone.trim()) {
       currentErrors.phone = "O telefone é obrigatório.";
       hasError = true;
     } else if (phoneNumbersOnly.length !== 11) {
-      currentErrors.phone = "Digite um telefone válido com DDD.";
+      currentErrors.phone = "Digite um telefone válido com DDD (11 dígitos).";
       hasError = true;
     }
 
+    // Validação de E-mail
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!email.trim()) {
       currentErrors.email = "O e-mail é obrigatório.";
@@ -168,11 +174,13 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
       hasError = true;
     }
 
+    // Validação de Senha
     if (!isPasswordStrong) {
       currentErrors.password = "A senha não atende a todos os requisitos.";
       hasError = true;
     }
 
+    // Validação de Confirmação de Senha
     if (!confirmPassword.trim()) {
       currentErrors.confirmPassword = "Você precisa confirmar a senha.";
       hasError = true;
@@ -186,40 +194,7 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
       return;
     }
 
-    // 4. CONSULTAS NO BANCO (Verificação de duplicidade)
-    setIsLoading(true);
     try {
-      // Consulta se o CPF já existe
-      const cpfQuery = query(
-        ref(database, "usuarios"),
-        orderByChild("cpf"),
-        equalTo(rawCpf),
-      );
-      const cpfSnapshot = await get(cpfQuery);
-      if (cpfSnapshot.exists()) {
-        currentErrors.cpf = "Este CPF já está cadastrado em outra conta.";
-        hasError = true;
-      }
-
-      // Consulta se o Telefone já existe
-      const phoneQuery = query(
-        ref(database, "usuarios"),
-        orderByChild("telefone"),
-        equalTo(phoneNumbersOnly),
-      );
-      const phoneSnapshot = await get(phoneQuery);
-      if (phoneSnapshot.exists()) {
-        currentErrors.phone = "Este telefone já está vinculado a outra conta.";
-        hasError = true;
-      }
-
-      if (hasError) {
-        setErrors(currentErrors);
-        setIsLoading(false);
-        return;
-      }
-
-      // 5. REGISTRO OFICIAL NO FIREBASE
       const userCredential = await createUserWithEmailAndPassword(
         auth,
         email,
@@ -227,11 +202,11 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
       );
       const user = userCredential.user;
 
-      // Salvamos no banco o CPF e o Telefone apenas com os números para facilitar buscas futuras
+      // Salvando os dados completos no Firebase (incluindo o CPF)
       await set(ref(database, "usuarios/" + user.uid), {
         nome: name,
-        cpf: rawCpf,
-        telefone: phoneNumbersOnly,
+        cpf: cpf,
+        telefone: phone,
         email: email,
         dataCadastro: new Date().toISOString(),
       });
@@ -246,12 +221,9 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
       } else if (error.code === "auth/invalid-email") {
         currentErrors.email = "O servidor recusou o formato do e-mail.";
       } else {
-        currentErrors.general =
-          "Ocorreu um erro no servidor. Verifique sua conexão e tente novamente.";
+        currentErrors.general = "Ocorreu um erro no servidor. Tente novamente.";
       }
       setErrors({ ...currentErrors });
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -287,7 +259,6 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
                     setName(text);
                     setErrors({ ...errors, name: "" });
                   }}
-                  editable={!isLoading}
                 />
                 {errors.name ? (
                   <Text style={styles.fieldErrorText}>{errors.name}</Text>
@@ -302,10 +273,9 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
                   maxLength={14}
                   value={cpf}
                   onChangeText={(text) => {
-                    setCpf(formatCpf(text));
+                    setCpf(formatCPF(text));
                     setErrors({ ...errors, cpf: "" });
                   }}
-                  editable={!isLoading}
                 />
                 {errors.cpf ? (
                   <Text style={styles.fieldErrorText}>{errors.cpf}</Text>
@@ -326,7 +296,6 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
                     setPhone(formatPhone(text));
                     setErrors({ ...errors, phone: "" });
                   }}
-                  editable={!isLoading}
                 />
                 {errors.phone ? (
                   <Text style={styles.fieldErrorText}>{errors.phone}</Text>
@@ -347,7 +316,6 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
                     setEmail(text);
                     setErrors({ ...errors, email: "" });
                   }}
-                  editable={!isLoading}
                 />
                 {errors.email ? (
                   <Text style={styles.fieldErrorText}>{errors.email}</Text>
@@ -368,7 +336,6 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
                     setPassword(text);
                     setErrors({ ...errors, password: "" });
                   }}
-                  editable={!isLoading}
                 />
 
                 <View style={styles.requirementsContainer}>
@@ -419,7 +386,6 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
                     setConfirmPassword(text);
                     setErrors({ ...errors, confirmPassword: "" });
                   }}
-                  editable={!isLoading}
                 />
 
                 {hasStartedConfirming && (
@@ -448,27 +414,16 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
                 ) : null}
 
                 <TouchableOpacity
-                  style={[
-                    styles.registerButton,
-                    isLoading && styles.registerButtonDisabled,
-                  ]}
+                  style={styles.registerButton}
                   onPress={handleRegister}
-                  disabled={isLoading}
                 >
-                  {isLoading ? (
-                    <ActivityIndicator color="#121212" />
-                  ) : (
-                    <Text style={styles.registerButtonText}>CADASTRAR</Text>
-                  )}
+                  <Text style={styles.registerButtonText}>CADASTRAR</Text>
                 </TouchableOpacity>
               </View>
 
               <View style={styles.footer}>
                 <Text style={styles.footerText}>Já faz parte da Fiel? </Text>
-                <TouchableOpacity
-                  onPress={() => navigation.goBack()}
-                  disabled={isLoading}
-                >
+                <TouchableOpacity onPress={() => navigation.goBack()}>
                   <Text style={styles.loginText}>Entrar</Text>
                 </TouchableOpacity>
               </View>
@@ -492,15 +447,16 @@ const styles = StyleSheet.create({
     paddingVertical: 40,
   },
   header: { alignItems: "center", marginBottom: 30 },
-  title: {
-    fontSize: 32,
-    fontWeight: "bold",
-    color: "#ffffff",
-    letterSpacing: 2,
-    textShadowColor: "rgba(0, 0, 0, 0.9)",
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 10,
-  },
+ title: { 
+        fontSize: 32, 
+        fontWeight: 'bold', 
+        color: '#ffffff', 
+        letterSpacing: 2, 
+        // Padrão nativo do React Native (aceito pelo TypeScript)
+        textShadowColor: 'rgba(0, 0, 0, 0.9)',
+        textShadowOffset: { width: 1, height: 1 },
+        textShadowRadius: 10,
+    },
   subtitle: {
     fontSize: 18,
     color: "#e0e0e0",
@@ -526,7 +482,11 @@ const styles = StyleSheet.create({
     borderColor: "#444",
     marginBottom: 15,
   },
-  inputError: { borderColor: "#ff4444", borderWidth: 1.5, marginBottom: 5 },
+  inputError: {
+    borderColor: "#ff4444",
+    borderWidth: 1.5,
+    marginBottom: 5,
+  },
   fieldErrorText: {
     color: "#ff4444",
     fontSize: 13,
@@ -555,19 +515,18 @@ const styles = StyleSheet.create({
     marginLeft: 4,
     fontWeight: "bold",
   },
-  registerButton: {
-    backgroundColor: "#ffffff",
-    padding: 16,
-    borderRadius: 8,
-    alignItems: "center",
-    marginTop: 10,
-    elevation: 3,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 3,
-  },
-  registerButtonDisabled: { backgroundColor: "#a0a0a0", elevation: 0 },
+ registerButton: { 
+        backgroundColor: '#ffffff', 
+        padding: 16, 
+        borderRadius: 8, 
+        alignItems: 'center', 
+        marginTop: 10, 
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 3,
+        elevation: 3 
+    },
   registerButtonText: {
     color: "#121212",
     fontSize: 16,
